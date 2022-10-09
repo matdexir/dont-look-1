@@ -68,9 +68,6 @@ def main(args):
 
     epoch_pbar = trange(args.num_epoch, desc="Epoch")
     for epoch in epoch_pbar:
-        # TODO: Training loop - iterate over train dataloader and update model weights
-        # TODO: Evaluation loop - calculate accuracy and save model weights
-        # TODO: Training loop - iterate over train dataloader and update model weights
         model.train()
         train_loss = 0.0
         train_acc = 0.0
@@ -91,7 +88,6 @@ def main(args):
             train_acc += (train_pred.cpu() == labels.cpu()).sum().item()
             train_loss += loss.item()
 
-        # TODO: Evaluation loop - calculate accuracy and save model weights
         with torch.no_grad():
             # h = model.init_hidden(batch_size, device)
             model.eval()
@@ -113,6 +109,33 @@ def main(args):
                 best_acc = val_acc
                 torch.save(model.state_dict(), "./ckpt/intent/model.ckpt")
                 print(f"Save model with acc {val_acc / len(dev_loader.dataset)}")
+        # TODO: Evaluation loop - calculate accuracy and save model weights
+    testing_data = None
+    with open("./data/intent/test.json", "r") as fp:
+        testing_data = json.load(fp)
+    testing_dataset = SeqClsDataset(testing_data, vocab, intent2idx, args.max_len)
+    # TODO: create DataLoader for test dataset
+    tt_loader = torch.utils.data.DataLoader(
+        testing_dataset,
+        shuffle=False,
+        batch_size=150,
+        collate_fn=testing_dataset.collate_fn,
+    )
+    model.eval()
+    ids = [d["id"] for d in testing_data]
+    # load weights into model
+
+    # TODO: predict dataset
+    # preds = []
+    ids = [d["id"] for d in testing_data]
+    with open("./pred.intent.csv", "w") as fp:
+        fp.write("id,intent\n")
+        with torch.no_grad():
+            for i, d in enumerate(tqdm(tt_loader)):
+                out, _ = model(d["text"].to("cuda:0"), None)
+                _, pred = torch.max(out, 1)
+                for j, p in enumerate(pred):
+                    fp.write(f"{ids[150*i+j]},{testing_dataset.idx2label(p.item())}\n")
 
 
 def parse_args() -> Namespace:
