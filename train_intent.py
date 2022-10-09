@@ -74,7 +74,7 @@ def main(args):
         best_acc = 0.0
         val_loss = 0.0
         val_acc = 0.0
-        h = model.init_hidden(batch_size, device)
+        # h = model.init_hidden(batch_size, device)
         for i, data in enumerate(tqdm(train_loader)):
             inputs, labels = data["text"], data["intent"]
             inputs, labels = inputs.to(device), labels.to(device)
