@@ -5,8 +5,9 @@ from pathlib import Path
 from typing import Dict
 
 import torch
+import torch.nn as nn
 from torch.utils.data import DataLoader
-from tqdm import trange
+from tqdm import tqdm, trange
 
 from dataset import SeqClsDataset
 from model import SeqClassifier
@@ -23,6 +24,8 @@ def main(args):
 
     intent_idx_path = args.cache_dir / "intent2idx.json"
     intent2idx: Dict[str, int] = json.loads(intent_idx_path.read_text())
+    batch_size = args.batch_size
+    device = args.device
 
     data_paths = {split: args.data_dir / f"{split}.json" for split in SPLITS}
     data = {split: json.loads(path.read_text()) for split, path in data_paths.items()}
@@ -67,9 +70,49 @@ def main(args):
     for epoch in epoch_pbar:
         # TODO: Training loop - iterate over train dataloader and update model weights
         # TODO: Evaluation loop - calculate accuracy and save model weights
-        pass
+        # TODO: Training loop - iterate over train dataloader and update model weights
+        model.train()
+        train_loss = 0.0
+        train_acc = 0.0
+        best_acc = 0.0
+        val_loss = 0.0
+        val_acc = 0.0
+        h = model.init_hidden(batch_size, device)
+        for i, data in enumerate(tqdm(train_loader)):
+            inputs, labels = data["text"], data["intent"]
+            inputs, labels = inputs.to(device), labels.to(device)
+            optimizer.zero_grad()
+            out, _ = model(inputs, None)
+            loss = nn.CrossEntropyLoss(out, labels)
+            _, train_pred = torch.max(out, 1)
+            loss.backward()
+            optimizer.step()
 
-    # TODO: Inference on test set
+            train_acc += (train_pred.cpu() == labels.cpu()).sum().item()
+            train_loss += loss.item()
+
+        # TODO: Evaluation loop - calculate accuracy and save model weights
+        with torch.no_grad():
+            # h = model.init_hidden(batch_size, device)
+            model.eval()
+            for i, dev_data in enumerate(tqdm(dev_loader)):
+                inputs, labels = dev_data["text"].to(device), dev_data["intent"].to(
+                    device
+                )
+                out, _ = model(inputs, None)
+
+                loss = nn.CrossEntropyLoss(out, labels)
+                _, val_pred = torch.max(out, 1)
+                val_acc += (val_pred.cpu() == labels.cpu()).sum().item()
+                val_loss += loss.item()
+
+            print(
+                f"Epoch {epoch + 1}: Train Acc: {train_acc / len(train_loader.dataset)}, Train Loss: {train_loss / len(train_loader)}, Val Acc: {val_acc / len(dev_loader.dataset)}, Val Loss: {val_loss / len(dev_loader)}"
+            )
+            if val_acc >= best_acc:
+                best_acc = val_acc
+                torch.save(model.state_dict(), "./ckpt/intent/model.ckpt")
+                print(f"Save model with acc {val_acc / len(dev_loader.dataset)}")
 
 
 def parse_args() -> Namespace:
