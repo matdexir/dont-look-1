@@ -5,9 +5,11 @@ from pathlib import Path
 from typing import Dict
 
 import torch
+from torch.utils.data import DataLoader
 from tqdm import trange
 
 from dataset import SeqClsDataset
+from model import SeqClassifier
 from utils import Vocab
 
 TRAIN = "train"
@@ -25,17 +27,41 @@ def main(args):
     data_paths = {split: args.data_dir / f"{split}.json" for split in SPLITS}
     data = {split: json.loads(path.read_text()) for split, path in data_paths.items()}
     datasets: Dict[str, SeqClsDataset] = {
-        split: SeqClsDataset(split_data, vocab, intent2idx, args.max_len)
+        split: SeqClsDataset(split_data, vocab, intent2idx, args.max_len, mode="train")
         for split, split_data in data.items()
     }
     # TODO: crecate DataLoader for train / dev datasets
+    train_loader = DataLoader(
+        datasets[TRAIN],
+        batch_size=args.batch_size,
+        shuffle=True,
+        pin_memory=True,
+        collate_fn=datasets[TRAIN].collate_fn,
+    )
+    dev_loader = DataLoader(
+        datasets[DEV],
+        batch_size=args.batch_size,
+        shuffle=False,
+        pin_memory=True,
+        collate_fn=datasets[DEV].collate_fn,
+    )
 
     embeddings = torch.load(args.cache_dir / "embeddings.pt")
     # TODO: init model and move model to target device(cpu / gpu)
-    model = None
+    model = SeqClassifier(
+        embeddings,
+        hidden_size=args.hidden_size,
+        num_layers=args.num_layers,
+        num_class=args.num_class,
+        # recurrent=args.recurrent,
+        dropout=args.dropout,
+        bidirectional=args.bidirectional,
+        # prefix=args.prefix,
+    )
 
     # TODO: init optimizer
-    optimizer = None
+    optimizer = torch.optim.RMSprop(model.parameters(), lr=args.lr, weight_decay=0)
+    model.to(device=args.device)
 
     epoch_pbar = trange(args.num_epoch, desc="Epoch")
     for epoch in epoch_pbar:
